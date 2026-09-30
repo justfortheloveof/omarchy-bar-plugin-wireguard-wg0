@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+# Stub `ip` for harness tests. The service reaches it through its binDir
+# property, so the real system is never touched.
+#
+# WG_STUB=up    exit 0, prints a realistic `ip -j addr show dev` document
+# WG_STUB=down  exit 1, "Device "<if>" does not exist." on stderr (real ip behaviour)
+# WG_STUB=error exit 2, silent
+# WG_STUB=up-down exit 0, same device but without the UP flag (admin down)
+#
+# Sequencing (see _seq.sh): WG_STUB_SEQ_FILE drives the same states per
+# invocation, with WG_STUB_DELAY_MS as the ambient delay.
+set -euo pipefail
+script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+# shellcheck source=./_seq.sh
+. "$script_dir/_seq.sh"
+seq_start ip "$@" || true
+state=${seq_state:-${WG_STUB:-down}}
+
+if [[ "${1:-}" != "-j" || "${2:-}" != "addr" || "${3:-}" != "show" || "${4:-}" != "dev" ]]; then
+    echo "stub ip: unexpected arguments: $*" >&2
+    exit 64
+fi
+ifname=${5:-wg0}
+
+case "$state" in
+up)
+    printf '%s\n' "[{\"ifindex\":7,\"ifname\":\"${ifname}\",\"flags\":[\"UP\",\"LOWER_UP\"],\"addr_info\":[{\"family\":\"inet\",\"local\":\"10.66.0.2\",\"prefixlen\":32,\"scope\":\"host\"}]}]"
+    exit 0
+    ;;
+down)
+    echo "Device \"${ifname}\" does not exist." >&2
+    exit 1
+    ;;
+error)
+    exit 2
+    ;;
+up-down)
+    printf '%s\n' "[{\"ifindex\":7,\"ifname\":\"${ifname}\",\"flags\":[\"BROADCAST\",\"MULTICAST\"],\"addr_info\":[]}]"
+    exit 0
+    ;;
+*)
+    echo "stub ip: unknown WG_STUB '$state'" >&2
+    exit 64
+    ;;
+esac

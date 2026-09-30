@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+# Fail if an agent-instruction file (AGENTS.md, .claude/, SKILL.md, ...) would
+# be published. The Omarchy marketplace refuses them, since coding agents pick
+# them up from the installed plugin folder.
+#
+# Tracked files and untracked, non-ignored files count. Outside a git work tree
+# rooted here, every match counts.
+set -euo pipefail
+root=${1:-"$(dirname "$0")/.."}
+pattern='(^|/)(agents|claude|gemini|copilot-instructions|conventions|codex|opencode|agent|agent-instructions|\.?cursorrules|\.?windsurfrules|\.?clinerules|\.?roorules|\.?aider[^/]*|\.?goosehints)(\.(md|mdc|txt|json|jsonc|ya?ml|toml))?$|(^|/)\.(claude|cursor|windsurf|clinerules|roo|kiro|continue|codex|gemini|junie|amazonq|augment|opencode|pi|github/instructions|github/prompts|github/chatmodes)(/|$)|(^|/)\.github/copilot-instructions\.md$|(^|/)skills?/[^/]+/SKILL\.md$'
+
+# The index is consulted only when this root is the work tree top, so the paths
+# git reports and find reports are relative to the same place.
+root_abs=$(cd "$root" && pwd -P)
+top=$(git -C "$root_abs" rev-parse --show-toplevel 2>/dev/null || true)
+consult_git=0
+if [ -n "$top" ] && [ "$(cd "$top" && pwd -P)" = "$root_abs" ]; then
+    consult_git=1
+fi
+
+cd "$root_abs"
+
+# True when $1 could reach a release: tracked, or untracked and not ignored.
+would_publish() {
+    [ "$consult_git" = 1 ] || return 0
+    git ls-files --error-unmatch -- "$1" >/dev/null 2>&1 && return 0
+    ! git check-ignore -q -- "$1" && return 0
+    return 1
+}
+
+# -mindepth drops the root itself and -printf %P the leading ./, so the paths
+# arrive exactly as git wants to hear them.
+found=()
+while IFS= read -r path; do
+    if would_publish "$path"; then
+        found+=("$path")
+    fi
+done < <(find . -mindepth 1 -path ./.git -prune -o -printf '%P\n' | grep -Ei "$pattern")
+
+if [ ${#found[@]} -gt 0 ]; then
+    echo "Agent-instruction files are not allowed in the plugin tree:" >&2
+    printf '  %s\n' "${found[@]}" >&2
+    exit 1
+fi
+echo "No agent-instruction files"

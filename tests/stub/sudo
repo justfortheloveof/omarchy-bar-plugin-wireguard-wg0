@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+# Stub `sudo` for harness tests: receives "-n <abs-inner> <args>" and execs the
+# inner command. Exits 64 unless -n is present and the inner executable is an
+# absolute path (the sudoers rule matches exact paths). Each call is logged to
+# $WG_STUB_LOG as "sudo\t-n\t<inner>\t<args...>".
+set -euo pipefail
+export PATH="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd):$PATH"
+
+if [[ "${1:-}" != "-n" ]]; then
+    echo "stub sudo: missing -n (non-interactive sudo is required): $*" >&2
+    exit 64
+fi
+shift
+if [[ "${1:-}" != /* ]]; then
+    echo "stub sudo: inner executable must be an absolute path: $*" >&2
+    exit 64
+fi
+
+if [[ -n "${WG_STUB_LOG:-}" ]]; then
+    logged="sudo"$'\t-n\t'
+    for a in "$@"; do
+        logged+="$a"$'\t'
+    done
+    printf '%s\n' "${logged%$'\t'}" >>"$WG_STUB_LOG"
+fi
+
+exec "$@"

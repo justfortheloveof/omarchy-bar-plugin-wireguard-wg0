@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+# Stub `wg-quick` for harness tests.
+#
+# WG_STUB_ACTION=ok     (default) exit 0 with the lines real wg-quick would print
+# WG_STUB_ACTION=fail   exit 1 with a "can't open /etc/wireguard/<if>.conf" error
+# WG_STUB_ACTION=hang   sleep long enough to exceed the caller's watchdog
+#
+# Sequencing (see _seq.sh): WG_STUB_SEQ_FILE drives the same actions per
+# invocation, combined with WG_STUB_DELAY_MS and WG_STUB_IGNORE_TERM.
+set -euo pipefail
+
+script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+# shellcheck source=./_seq.sh
+. "$script_dir/_seq.sh"
+seq_start wg-quick "$@" || true
+seq_action_state=${seq_state:-${WG_STUB_ACTION:-ok}}
+
+direction=${1:-}
+ifname=${2:-wg0}
+
+if [[ "$direction" != "up" && "$direction" != "down" ]]; then
+    echo "Usage: wg-quick [ up | down | save | strip ] [ CONFIG_FILE | INTERFACE ]" >&2
+    exit 1
+fi
+
+case "$seq_action_state" in
+ok)
+    echo "# wg-quick v1.4.1 (stub)"
+    echo " * ip link add ${ifname} type wireguard"
+    echo " * $direction: ${ifname}"
+    exit 0
+    ;;
+fail)
+    echo "can't open /etc/wireguard/${ifname}.conf: No such file or directory" >&2
+    exit 1
+    ;;
+hang)
+    # Outlast the caller's watchdog. Each sleep is a short-lived child, so a
+    # SIGKILL leaves at most a 1 s orphan; ignore-term makes it survive SIGTERM.
+    while :; do sleep 1; done
+    ;;
+*)
+    echo "stub wg-quick: unknown WG_STUB_ACTION '$seq_action_state'" >&2
+    exit 64
+    ;;
+esac

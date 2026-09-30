@@ -1,0 +1,90 @@
+#!/usr/bin/env bash
+# Stub `wg` for harness tests. The service reaches it as (sudo, wg, show,
+# wg0, <field>) for each of the six non-secret field queries; the stub `sudo`
+# sibling execs everything after "sudo", so the argument order below is exactly
+# what the service builds. Any other argument shape prints an error and exits
+# 64.
+#
+# WG_STUB_PEER=one       (default) one peer, every field populated, with a
+#                          handshake 58 s before now (fresh)
+# WG_STUB_PEER=stale     like one, but the handshake is an hour old
+# WG_STUB_PEER=never     like one, but no handshake yet (0)
+# WG_STUB_PEER=malformed like one, but the transfer row has one value field
+# WG_STUB_PEER=fail      every invocation exits 1 silent (real wg on a missing interface)
+# Unknown value: stderr message + exit 64.
+#
+# Sequencing (see _seq.sh): WG_STUB_SEQ_FILE drives the same values per
+# invocation, with WG_STUB_DELAY_MS as the ambient delay.
+#
+# The peer key below is a synthetic 44-char base64 string.
+set -euo pipefail
+
+script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+# shellcheck source=./_seq.sh
+. "$script_dir/_seq.sh"
+seq_start wg "$@" || true
+seq_peer_state=${seq_state:-${WG_STUB_PEER:-one}}
+
+if [[ "${1:-}" != "show" || "${2:-}" != "wg0" || -z "${3:-}" ]]; then
+    echo "stub wg: unexpected arguments: $*" >&2
+    exit 64
+fi
+field=$3
+
+case "$field" in
+peers | endpoints | allowed-ips | latest-handshakes | transfer | persistent-keepalive) ;;
+*)
+    echo "stub wg: unexpected arguments: $*" >&2
+    exit 64
+    ;;
+esac
+
+state=$seq_peer_state
+case "$state" in
+one | stale | never | malformed | fail) ;;
+*)
+    echo "stub wg: unknown WG_STUB_PEER '$state'" >&2
+    exit 64
+    ;;
+esac
+
+if [[ "$state" == "fail" ]]; then
+    exit 1
+fi
+
+PEER_A=ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ=
+
+# Handshakes are relative to now, so "fresh" stays fresh whenever this runs.
+now=$(date +%s)
+case "$state" in
+stale) handshake=$((now - 3600)) ;;
+never) handshake=0 ;;
+*) handshake=$((now - 58)) ;;
+esac
+
+case "$field" in
+peers)
+    printf '%s\n' "$PEER_A"
+    ;;
+endpoints)
+    printf '%s\t%s\n' "$PEER_A" "192.0.2.65:52871"
+    ;;
+allowed-ips)
+    printf '%s\t%s\n' "$PEER_A" "0.0.0.0/0 ::/0"
+    ;;
+latest-handshakes)
+    printf '%s\t%s\n' "$PEER_A" "$handshake"
+    ;;
+transfer)
+    if [[ "$state" == "malformed" ]]; then
+        printf '%s\t%s\n' "$PEER_A" "2375032"
+    else
+        printf '%s\t%s\t%s\n' "$PEER_A" "2375032" "592340"
+    fi
+    ;;
+persistent-keepalive)
+    printf '%s\t%s\n' "$PEER_A" "25"
+    ;;
+esac
+
+exit 0

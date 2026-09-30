@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+# Local check: everything CI runs, plus `omarchy plugin validate`, which needs an
+# Omarchy box. Any failing stage aborts with a non-zero exit, and skipped stages
+# are listed, so a pending tree is never reported as "all green".
+set -euo pipefail
+
+root=$(cd "$(dirname "$0")/.." && pwd)
+cd "$root"
+
+skips=""
+
+skip() {
+    printf 'skip: %s\n' "$1"
+    skips="$skips $1"
+}
+
+# ---------------------------------------------------------------------------
+# CI-equivalent stage (must run anywhere, no cwd dependence).
+# ---------------------------------------------------------------------------
+bash -n bin/check tests/harness/run.sh bin/check-agent-files tests/stub/*
+bin/check-agent-files "$root"
+python3 -c 'import json; json.load(open("manifest.json"))'
+node --test tests/model.test.cjs
+
+# ---------------------------------------------------------------------------
+# Manifest validation against the marketplace schema.
+# ---------------------------------------------------------------------------
+if command -v omarchy >/dev/null 2>&1 && [ -d /usr/share/omarchy ]; then
+    omarchy plugin validate "$root"
+else
+    skip "omarchy not found - not validating manifest (local machine only)"
+fi
+
+# ---------------------------------------------------------------------------
+# Stub-driven QML service harness. Skipped unless run.sh is executable and
+# quickshell is on PATH; run.sh symlinks the QML/JS files plus a copy of
+# harness.qml into a temp dir and drives them against tests/stub.
+# ---------------------------------------------------------------------------
+if [ -x "$root/tests/harness/run.sh" ] && command -v quickshell >/dev/null 2>&1; then
+    "$root/tests/harness/run.sh"
+else
+    skip "qml harness not run (quickshell is required)"
+fi
+
+# ---------------------------------------------------------------------------
+# Summary. A truly green run means zero skips.
+# ---------------------------------------------------------------------------
+if [ -n "$skips" ]; then
+    printf 'bin/check: green with %s skip(s):%s\n' "$(wc -w <<<"$skips")" "$skips"
+else
+    echo "bin/check: all green"
+fi

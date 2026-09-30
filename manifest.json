@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "id": "io.github.justfortheloveof.wireguard-wg0",
+  "name": "WireGuard",
+  "version": "0.1.0",
+  "author": "justfortheloveof",
+  "license": "MIT",
+  "description": "Toggle the wg0 WireGuard tunnel, see its status and peer details in a panel, and get notified when something else takes it down.",
+  "kinds": ["bar-widget", "service"],
+  "entryPoints": {
+    "service": "Service.qml",
+    "barWidget": "Panel.qml"
+  },
+  "keepLoaded": false,
+  "barWidget": {
+    "displayName": "WireGuard",
+    "description": "Show the wg0 tunnel's status in the bar, and toggle it and see its peer details in the panel.",
+    "category": "Network",
+    "allowMultiple": false,
+    "defaultSection": "right",
+    "defaults": {
+      "notifyExternalDrop": true,
+      "handshakeError": true,
+      "handshakeStaleAfterSec": 135,
+      "pollIntervalSec": 10
+    }
+  }
+}

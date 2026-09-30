@@ -1,0 +1,71 @@
+#!/usr/bin/env bash
+# Stub `omarchy-notification-send` for harness tests (the harness points the
+# service's notifyBin here). Accepts only the argv shape the plugin sends:
+# --app-name/-g/-u options, headline, body, then an optional --exec argv.
+# Anything else exits 64. Each call appends to $WG_STUB_LOG:
+#
+#   <tool>\t<app-name>\t<urgency>\t<glyph>\t<headline>\t<body>\t<exec argv or ->
+set -euo pipefail
+
+app_name="-"
+urgency="-"
+glyph="-"
+headline=""
+body=""
+exec_argv="-"
+
+while (($# > 0)); do
+    case "$1" in
+    --exec)
+        shift
+        (($# > 0)) || {
+            echo "stub omarchy-notification-send: --exec needs a command" >&2
+            exit 64
+        }
+        [[ "$1" = /* ]] || {
+            echo "stub omarchy-notification-send: --exec program must be an absolute path: $1" >&2
+            exit 64
+        }
+        exec_argv="$*"
+        break
+        ;;
+    --app-name | -g | -u)
+        (($# >= 2)) || {
+            echo "stub omarchy-notification-send: $1 needs a value" >&2
+            exit 64
+        }
+        case "$1" in
+        --app-name) app_name=$2 ;;
+        -g) glyph=$2 ;;
+        -u) urgency=$2 ;;
+        esac
+        shift 2
+        ;;
+    -*)
+        echo "stub omarchy-notification-send: unknown option: $1" >&2
+        exit 64
+        ;;
+    *)
+        if [[ -z "$headline" ]]; then
+            headline=$1
+        elif [[ -z "$body" ]]; then
+            body=$1
+        else
+            echo "stub omarchy-notification-send: unexpected extra positional: $1" >&2
+            exit 64
+        fi
+        shift
+        ;;
+    esac
+done
+
+[[ -n "$headline" ]] || {
+    echo "stub omarchy-notification-send: missing headline" >&2
+    exit 64
+}
+
+if [[ -n "${WG_STUB_LOG:-}" ]]; then
+    printf 'omarchy-notification-send\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+        "$app_name" "$urgency" "$glyph" "$headline" "$body" "$exec_argv" >>"$WG_STUB_LOG"
+fi
+exit 0
