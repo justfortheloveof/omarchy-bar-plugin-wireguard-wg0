@@ -5,7 +5,7 @@
   "version": "0.1.0",
   "author": "justfortheloveof",
   "license": "MIT",
-  "description": "Toggle the wg0 WireGuard tunnel, see its status and peer details in a panel, and get notified when something else takes it down.",
+  "description": "Toggle the wg0 WireGuard tunnel, see its status and peer details in a panel, and has configurable notifications for when something else takes it down or when the last handshake is older than expected.",
   "kinds": ["bar-widget", "service"],
   "entryPoints": {
     "service": "Service.qml",
@@ -21,7 +21,7 @@
     "defaults": {
       "notifyExternalDrop": true,
       "handshakeError": true,
-      "handshakeStaleAfterSec": 135,
+      "handshakeStaleAfterSec": 145,
       "pollIntervalSec": 10
     }
   }

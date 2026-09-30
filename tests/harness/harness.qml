@@ -1665,7 +1665,7 @@ ShellRoot {
     //      polls, cleared and re-armed by a looser threshold, raised again by a
     //      tighter one. run.sh: nf==2, both the handshake toast.
     function stepS24() {
-        var msg = Model.handshakeErrorMessage([Model.shortKey("ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ=")], 135);
+        var msg = Model.handshakeErrorMessage([Model.shortKey("ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ=")], 145);
         switch (h.phase) {
         case "boot":
             h.phase = "wait-error";
@@ -1714,7 +1714,7 @@ ShellRoot {
                 return false;
             }
             svc.applyPrefs({
-                handshakeStaleAfterSec: 135
+                handshakeStaleAfterSec: 145
             });
             if (svc.handshakeError !== msg) {
                 h.fail("the tighter threshold did not raise the error again");
@@ -1961,7 +1961,7 @@ ShellRoot {
     //      stale; once the tunnel has been up past the threshold it is.
     //      run.sh: nf==1 (the handshake toast, only after the wait).
     function stepS30() {
-        var msg = Model.handshakeErrorMessage([Model.shortKey("ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ=")], 135);
+        var msg = Model.handshakeErrorMessage([Model.shortKey("ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ=")], 145);
         switch (h.phase) {
         case "boot":
             h.phase = "wait-peers";

@@ -12,7 +12,7 @@ An Omarchy bar widget for a single WireGuard interface, `wg0`.
 - If something outside the plugin (NetworkManager, a systemd unit, a terminal)
   takes the tunnel down, you get a critical notification. Click it to bring
   the tunnel back up.
-- If a peer's last handshake gets older than a threshold (135 s by default),
+- If a peer's last handshake gets older than a threshold (145 s by default),
   the panel shows an error and you get one notification. A peer that has not
   shaken hands at all counts once the tunnel has been up for that long.
 - Every failed command raises a notification and shows in the panel's error
@@ -34,7 +34,7 @@ fixed.
 - `wireguard-tools` (`wg`, `wg-quick`) and `iproute2` (`ip`):
 
   ```sh
-  yay -S wireguard-tools iproute2
+  yay -S wireguard-tools iproute2 wl-clipboard
   ```
 
 - A working `/etc/wireguard/wg0.conf`.
@@ -146,7 +146,7 @@ They are lost if the widget is removed from the bar.
 | --- | --- | --- |
 | Error and notify on external down | `notifyExternalDrop` | `true` |
 | Error on expired handshake | `handshakeError` | `true` |
-| Expired handshake threshold (seconds, 120 to 86400) | `handshakeStaleAfterSec` | `135` |
+| Expired handshake threshold (seconds, 120 to 86400) | `handshakeStaleAfterSec` | `145` |
 | Poll interval (seconds, 1 to 3600) | `pollIntervalSec` | `10` |
 
 With `notifyExternalDrop` off, an outside drop is shown as a plain down: no

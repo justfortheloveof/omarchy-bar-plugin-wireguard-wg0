@@ -759,12 +759,12 @@ test("peerStartAllowed: state up and no action in flight", () => {
   assert.equal(ctx.peerStartAllowed("error", false), false);
 });
 
-test("isHandshakeStale: older than 135s or never is stale, absent is not", () => {
+test("isHandshakeStale: older than 145s or never is stale, absent is not", () => {
   const now = NOW_MS;
   const epoch = (s) => now / 1000 - s;
   assert.equal(ctx.isHandshakeStale(epoch(58), now), false);
-  assert.equal(ctx.isHandshakeStale(epoch(135), now), false);
-  assert.equal(ctx.isHandshakeStale(epoch(136), now), true);
+  assert.equal(ctx.isHandshakeStale(epoch(145), now), false);
+  assert.equal(ctx.isHandshakeStale(epoch(146), now), true);
   assert.equal(ctx.isHandshakeStale(epoch(3600), now), true);
   assert.equal(ctx.isHandshakeStale(0, now), true);
   assert.equal(ctx.isHandshakeStale("off", now), false);
@@ -830,7 +830,7 @@ test("normalizePrefs: defaults for missing, null and non-object input", () => {
   const d = {
     notifyExternalDrop: true,
     handshakeError: true,
-    handshakeStaleAfterSec: 135,
+    handshakeStaleAfterSec: 145,
     pollIntervalSec: 10,
   };
   assert.deepEqual({ ...ctx.normalizePrefs({}) }, d);
@@ -861,10 +861,10 @@ test("normalizePrefs: invalid values fall back, out-of-range integers clamp", ()
   assert.equal(ctx.normalizePrefs({ handshakeError: 2 }).handshakeError, true);
   assert.equal(ctx.normalizePrefs({ handshakeStaleAfterSec: 60 }).handshakeStaleAfterSec, 120);
   assert.equal(ctx.normalizePrefs({ handshakeStaleAfterSec: 10 ** 9 }).handshakeStaleAfterSec, 86400);
-  assert.equal(ctx.normalizePrefs({ handshakeStaleAfterSec: 150.5 }).handshakeStaleAfterSec, 135);
-  assert.equal(ctx.normalizePrefs({ handshakeStaleAfterSec: "abc" }).handshakeStaleAfterSec, 135);
-  assert.equal(ctx.normalizePrefs({ handshakeStaleAfterSec: "" }).handshakeStaleAfterSec, 135);
-  assert.equal(ctx.normalizePrefs({ handshakeStaleAfterSec: true }).handshakeStaleAfterSec, 135);
+  assert.equal(ctx.normalizePrefs({ handshakeStaleAfterSec: 150.5 }).handshakeStaleAfterSec, 145);
+  assert.equal(ctx.normalizePrefs({ handshakeStaleAfterSec: "abc" }).handshakeStaleAfterSec, 145);
+  assert.equal(ctx.normalizePrefs({ handshakeStaleAfterSec: "" }).handshakeStaleAfterSec, 145);
+  assert.equal(ctx.normalizePrefs({ handshakeStaleAfterSec: true }).handshakeStaleAfterSec, 145);
   assert.equal(ctx.normalizePrefs({ handshakeStaleAfterSec: 120 }).handshakeStaleAfterSec, 120);
 });
 
@@ -881,7 +881,7 @@ test("normalizePrefs: pollIntervalSec is a whole number of seconds in 1..3600", 
 });
 
 test("samePrefs compares normalized values", () => {
-  assert.equal(ctx.samePrefs({}, { notifyExternalDrop: "true", handshakeStaleAfterSec: "135" }), true);
+  assert.equal(ctx.samePrefs({}, { notifyExternalDrop: "true", handshakeStaleAfterSec: "145" }), true);
   assert.equal(ctx.samePrefs({}, { handshakeStaleAfterSec: 300 }), false);
   assert.equal(ctx.samePrefs({ handshakeError: false }, {}), false);
   assert.equal(ctx.samePrefs({ pollIntervalSec: "10" }, {}), true);
@@ -892,22 +892,22 @@ test("isHandshakeStale honours a custom threshold", () => {
   const epoch = (s) => NOW_MS / 1000 - s;
   assert.equal(ctx.isHandshakeStale(epoch(200), NOW_MS, 300), false);
   assert.equal(ctx.isHandshakeStale(epoch(301), NOW_MS, 300), true);
-  assert.equal(ctx.isHandshakeStale(epoch(136), NOW_MS, undefined), true);
+  assert.equal(ctx.isHandshakeStale(epoch(146), NOW_MS, undefined), true);
 });
 
 test("isHandshakeStale: a never-completed handshake waits out the threshold after the up", () => {
   const upAgo = (s) => NOW_MS - s * 1000;
   // just up: no peer has had the chance to shake hands
-  assert.equal(ctx.isHandshakeStale(0, NOW_MS, 135, upAgo(1)), false);
-  assert.equal(ctx.isHandshakeStale("0", NOW_MS, 135, upAgo(135)), false);
-  assert.equal(ctx.isHandshakeStale(0, NOW_MS, 135, upAgo(136)), true);
+  assert.equal(ctx.isHandshakeStale(0, NOW_MS, 145, upAgo(1)), false);
+  assert.equal(ctx.isHandshakeStale("0", NOW_MS, 145, upAgo(145)), false);
+  assert.equal(ctx.isHandshakeStale(0, NOW_MS, 145, upAgo(146)), true);
   assert.equal(ctx.isHandshakeStale(0, NOW_MS, 300, upAgo(200)), false);
   // unknown up time: stale at once, as before
-  assert.equal(ctx.isHandshakeStale(0, NOW_MS, 135, 0), true);
-  assert.equal(ctx.isHandshakeStale(0, NOW_MS, 135, undefined), true);
+  assert.equal(ctx.isHandshakeStale(0, NOW_MS, 145, 0), true);
+  assert.equal(ctx.isHandshakeStale(0, NOW_MS, 145, undefined), true);
   // a real handshake ignores the up time
-  assert.equal(ctx.isHandshakeStale(NOW_MS / 1000 - 200, NOW_MS, 135, upAgo(1)), true);
-  assert.equal(ctx.isHandshakeStale(NOW_MS / 1000 - 58, NOW_MS, 135, upAgo(3600)), false);
+  assert.equal(ctx.isHandshakeStale(NOW_MS / 1000 - 200, NOW_MS, 145, upAgo(1)), true);
+  assert.equal(ctx.isHandshakeStale(NOW_MS / 1000 - 58, NOW_MS, 145, upAgo(3600)), false);
 });
 
 test("buildPeers and restalePeers pass the up time through", () => {
@@ -919,10 +919,10 @@ test("buildPeers and restalePeers pass the up time through", () => {
     transfer: [],
     keepalives: [],
   };
-  const fresh = ctx.buildPeers(doc, NOW_MS, 135, NOW_MS - 5000);
+  const fresh = ctx.buildPeers(doc, NOW_MS, 145, NOW_MS - 5000);
   assert.equal(fresh[0].handshake, "never");
   assert.equal(fresh[0].handshakeStale, false);
-  assert.equal(ctx.restalePeers(fresh, NOW_MS, 135, NOW_MS - 200000)[0].handshakeStale, true);
+  assert.equal(ctx.restalePeers(fresh, NOW_MS, 145, NOW_MS - 200000)[0].handshakeStale, true);
   assert.equal(ctx.restalePeers(fresh, NOW_MS, 300, NOW_MS - 200000)[0].handshakeStale, false);
 });
 
@@ -932,7 +932,7 @@ test("a stub peer that never shook hands reads never", () => {
     peerList: ["ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ="],
     handshakes: ctx.parsePeerTable(r.stdout, 1),
   };
-  const p = ctx.buildPeers(doc, Date.now(), 135, Date.now())[0];
+  const p = ctx.buildPeers(doc, Date.now(), 145, Date.now())[0];
   assert.equal(p.handshake, "never");
   assert.equal(p.handshakeStale, false);
 });
@@ -969,10 +969,10 @@ test("buildPeers uses the threshold; restalePeers recomputes it from the raw epo
 
 test("handshakeErrorMessage: stable text, one peer named, several counted, within toast budget", () => {
   const key = ctx.shortKey(PK_A);
-  const one = ctx.handshakeErrorMessage([key], 135);
-  assert.equal(one, `Peer ${key} has had no handshake for over 2m 15s`);
+  const one = ctx.handshakeErrorMessage([key], 145);
+  assert.equal(one, `Peer ${key} has had no handshake for over 2m 25s`);
   assert.equal(ctx.handshakeErrorMessage([key, key, key], 86400), "3 peers have had no handshake for over 1d");
-  assert.equal(ctx.handshakeErrorMessage([], 135), "");
+  assert.equal(ctx.handshakeErrorMessage([], 145), "");
   assert.ok(ctx.handshakeErrorMessage([key], 86399).length <= 100);
 });
 

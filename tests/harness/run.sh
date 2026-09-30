@@ -181,7 +181,7 @@ expect_drop_toasts() {
 # toast for the stub peer: normal urgency, no click action.
 expect_handshake_toasts() {
     local scn=$1
-    local want_body="Peer ZZZZZZ…ZZZZZ= has had no handshake for over 2m 15s"
+    local want_body="Peer ZZZZZZ…ZZZZZ= has had no handshake for over 2m 25s"
     awk -F '\t' -v b="$want_body" '
     BEGIN { bad = 0 }
     $1 == "omarchy-notification-send" {

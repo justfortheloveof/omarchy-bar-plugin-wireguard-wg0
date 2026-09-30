@@ -133,7 +133,7 @@ function handshakeAgo(epoch, nowMs) {
   return compactDuration(Math.round((Number(nowMs) || Date.now()) / 1000 - e));
 }
 
-var HANDSHAKE_STALE_DEFAULT_SEC = 135;
+var HANDSHAKE_STALE_DEFAULT_SEC = 145;
 
 // Filled shield while up, outlined otherwise (U+F0D33 / U+F0D34). Shared by the
 // bar, the panel and notifications.
