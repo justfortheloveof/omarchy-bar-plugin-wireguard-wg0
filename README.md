@@ -1,5 +1,7 @@
 # WireGuard
 
+![Preview](./preview.png)
+
 An Omarchy bar widget for a single WireGuard interface, `wg0`.
 
 - A shield in the bar shows the tunnel state: filled while up, outlined
