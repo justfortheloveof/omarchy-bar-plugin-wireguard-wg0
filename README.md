@@ -37,9 +37,15 @@ fixed.
   yay -S wireguard-tools iproute2 wl-clipboard
   ```
 
-- A working `/etc/wireguard/wg0.conf`.
 - A passwordless sudo rule for exactly the commands the plugin runs.
 - `wl-clipboard` (`wl-copy`) for the click-to-copy values; Omarchy ships it.
+- A working `/etc/wireguard/wg0.conf`.
+
+> [!WARNING]
+> An untrusted or modified WireGuard .conf file can inject malicious payloads,
+> exfiltrate data, or install malware during the interface activation or teardown
+> phase. Always inspect the contents of any .conf file—specifically checking for
+> `PreUp`, `PostUp`, `PreDown`, and `PostDown` keys.
 
 ### sudoers
 
