@@ -144,6 +144,15 @@ expect_log() {
     s30) [[ $ip -eq 2 && $wg -eq 12 && $wgq -eq 0 && $nf -eq 1 ]] ;;
     # Drop, error, down (re-arms), error: the same ip error notifies twice.
     s31) [[ $ip -eq 5 && $wgq -eq 0 && $nf -eq 3 ]] ;;
+    # The trap and its two-click escape: 4 polls, 3 actions (the failed one
+    # plus the two-click loop). nf==2: the failed up and the link-down status
+    # error. The final up starts the peer chain, which races the exit: at most
+    # one 6-query chain is logged.
+    s32) [[ $ip -eq 4 && $wg -le 6 && $wgq -eq 3 && $nf -eq 2 ]] ;;
+    s33) [[ $ip -eq 4 && $wg -le 6 && $wgq -eq 3 && $nf -eq 2 ]] ;;
+    # The boot chain, 3 actions. nf==3: the failed down, the link-down status
+    # error, the re-issued failed up (the second link-down poll dedupes).
+    s34) [[ $ip -eq 4 && $wg -ge 6 && $wgq -eq 3 && $nf -eq 3 ]] ;;
     *) return 1 ;;
     esac || return 1
     if [[ $scn == s15 ]]; then
@@ -403,6 +412,44 @@ seq_s31="$scratch/seq_s31"
     S "ip: error" # the same failure: notifies again
 } >"$seq_s31"
 
+# No ambient polls (HARNESS_POLL_MS=600000), so every seq line is consumed in
+# order by an explicit poll: no spares before the last line.
+seq_s32="$scratch/seq_s32"
+{
+    S "ip: down"       # boot
+    S "wg-quick: fail" # our up fails
+    S "ip: up-down"    # verify: half-created, link down (the trap)
+    S "wg-quick: ok"   # our down: deletes the interface
+    S "ip: down"       # verify: gone
+    S "wg-quick: ok"   # our up: creates it fresh
+    S "ip: up"         # verify: recovered
+    S "ip: up"         # spare: only a surplus poll would consume it
+} >"$seq_s32"
+
+seq_s33="$scratch/seq_s33"
+{
+    S "ip: down"       # boot
+    S "wg-quick: hang" # our up hangs; the watchdog kills it (cleanup bypassed)
+    S "ip: up-down"    # verify: half-created, link down (the trap)
+    S "wg-quick: ok"   # our down: deletes the interface
+    S "ip: down"       # verify: gone
+    S "wg-quick: ok"   # our up: creates it fresh
+    S "ip: up"         # verify: recovered
+    S "ip: up"         # spare: only a surplus poll would consume it
+} >"$seq_s33"
+
+seq_s34="$scratch/seq_s34"
+{
+    S "ip: up"         # boot
+    S "wg-quick: fail" # our down fails
+    S "ip: up-down"    # verify: link-down half-state
+    S "wg-quick: fail" # re-issued up: fails, the interface exists
+    S "ip: up-down"    # verify: still link-down
+    S "wg-quick: ok"   # our down: deletes the interface
+    S "ip: down"       # verify: recovered
+    S "ip: down"       # spare: only a surplus poll would consume it
+} >"$seq_s34"
+
 # Shorter action watchdogs for the timeout scenarios. s10 needs room for
 # run 1's late exit to land while run 2 is still running.
 ACTS=HARNESS_ACTION_MS=2500
@@ -441,6 +488,9 @@ run s28 /dev/null HARNESS_POLL_MS=1000 WG_STUB_DELAY_MS=2500
 run s29 "$seq_s29"
 run s30 /dev/null WG_STUB=up WG_STUB_PEER=never
 run s31 "$seq_s31"
+run s32 "$seq_s32"
+run s33 "$seq_s33" "$ACTS"
+run s34 "$seq_s34"
 set -e
 
 printf 'harness: %d passed, %d failed\n' "$passes" "$failed"

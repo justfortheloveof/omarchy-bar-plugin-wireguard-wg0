@@ -43,8 +43,10 @@ Rules:
 - **A manual refresh during a status poll is kept**, not dropped: it sets one
   flag and runs a single poll when that poll lands, however many refreshes
   arrived.
-- **An action starts only from a confirmed `up` or `down`** with both the
-  status and action lanes idle.
+- **An action starts from a confirmed `up` or `down`**, with both the status
+  and action lanes idle — **or from the state a failed action left** (any
+  state), so the user can always issue the opposite action to escape a
+  half-created interface (see Switch position).
 - **The peer chain runs only while `up` with no action in flight.** Anything
   that makes an in-flight chain stale (toggle accepted, tunnel left `up`, chain
   failure) bumps a generation counter, and late results are dropped silently.
@@ -64,6 +66,28 @@ Rules:
 An `error` poll says nothing about the tunnel itself, so it changes neither the
 drop memory nor a pending own-down (below). It does clear the peer list: the
 peers are gone with a tunnel it could not confirm.
+
+## Switch position
+
+The panel's switch is positioned by the user's *requested direction*, not the
+observed state (ADR-0002). It is on for a confirmed `up`, and on for an
+`error` left by a failed `up`; a failed `down` leaves it off. Starting a new
+action clears the remembered failed direction, so the switch follows the
+newest intent while the action is in flight. A poll that confirms the failed
+action's target (the `actionTargetReached` rule) clears the error and the
+switch follows the state; a `down` poll after a failed `up` moves the switch
+off (the half-state was cleaned up out of band).
+
+This exists because a failed or killed `wg-quick up` can leave the interface
+existing with its link down — the watchdog's SIGKILL bypasses wg-quick's
+cleanup trap — and `wg-quick up` refuses an existing interface, so the only
+escape is `wg-quick down` (deletes it) followed by `wg-quick up`. The switch
+stays operable in that state, so the user's two clicks run exactly that
+sequence. The bar glyph, hero, status row and colours keep reflecting the
+observed state: the switch is intent, never a claim that traffic is tunnelled.
+
+The drop toast's click action (`bringUp`) acts only on a confirmed `down`, so
+a stale toast is a no-op in the trap state.
 
 ## Outside drops
 
@@ -141,7 +165,8 @@ Each lane has its own error property (`actionError`, `statusError`,
 `handshakeError`. A few other events clear one too:
 
 - `actionError`: a status poll that confirms the state the failed action was
-  after (for example a failed `up`, then the tunnel brought up by hand);
+  after (for example a failed `up`, then the tunnel brought up by hand), or a
+  new action started (the newest intent supersedes the failure);
 - `peerError`: a `down` poll, since the peers are gone with the tunnel;
 - the outside-drop message in `statusError`: turning `notifyExternalDrop` off.
 
@@ -167,13 +192,13 @@ notification card draws no buttons, so the toast text itself says
 flowchart TD
     T["poll timer, pollIntervalSec<br/>(fires on start,<br/>skipped while busy)"] --> C1{"action<br/>in flight?"}
     RFR["refresh: panel open,<br/>button, r key"] --> C1
-    U["toggle"] --> C2{"confirmed up/down<br/>and lanes idle?"}
+    U["toggle"] --> C2{"confirmed up/down,<br/>or a failed action,<br/>lanes idle?"}
     W["toast click: bringUp"] --> C2
     C2 -->|no| CN["ignored"]
-    C2 -->|yes| A["wg-quick up|down<br/>peer chain invalidated<br/>down arms own-down"]
+    C2 -->|yes| A["wg-quick up|down<br/>peer chain invalidated<br/>failed direction cleared<br/>down arms own-down"]
     A --> AC{outcome}
     AC -->|exit 0| AO["actionError cleared"]
-    AC -->|failed / timeout| AF["state error<br/>actionError, notify<br/>(cleared once a poll<br/>sees the target state)"]
+    AC -->|failed / timeout| AF["state error<br/>actionError, notify<br/>switch keeps requested direction<br/>(cleared once a poll<br/>sees the target state)"]
     AO --> V["verification poll"]
     AF --> V
     C1 -->|yes| D["dropped, the verification poll covers it"]

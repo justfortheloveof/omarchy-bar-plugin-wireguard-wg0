@@ -703,14 +703,33 @@ test("buildPeers: an empty peer list with empty tables yields an empty list", ()
   assert.equal(ctx.buildPeers(doc, NOW_MS).length, 0);
 });
 
-test("canToggle: only confirmed up/down and not busy", () => {
+test("canToggle: confirmed up/down, or the state a failed action left", () => {
   assert.equal(ctx.canToggle("up", false), true);
   assert.equal(ctx.canToggle("down", false), true);
   assert.equal(ctx.canToggle("up", true), false);
   assert.equal(ctx.canToggle("down", true), false);
   assert.equal(ctx.canToggle("checking", false), false);
+  // An error with no failed action remembered is not operable...
   assert.equal(ctx.canToggle("error", false), false);
-  assert.equal(ctx.canToggle("error", true), false);
+  assert.equal(ctx.canToggle("error", false, ""), false);
+  assert.equal(ctx.canToggle("error", true, "up"), false);
+  // ...but a failed action makes it operable, in either direction.
+  assert.equal(ctx.canToggle("error", false, "up"), true);
+  assert.equal(ctx.canToggle("error", false, "down"), true);
+});
+
+test("switchOn: the state, except a failed up keeps the switch on", () => {
+  assert.equal(ctx.switchOn("up", ""), true);
+  assert.equal(ctx.switchOn("up", "up"), true);
+  assert.equal(ctx.switchOn("down", ""), false);
+  // A stale failed up does not override a confirmed down...
+  assert.equal(ctx.switchOn("down", "up"), false);
+  assert.equal(ctx.switchOn("checking", ""), false);
+  assert.equal(ctx.switchOn("checking", "up"), false);
+  // ...nor an error left by a failed down.
+  assert.equal(ctx.switchOn("error", ""), false);
+  assert.equal(ctx.switchOn("error", "down"), false);
+  assert.equal(ctx.switchOn("error", "up"), true);
 });
 
 test("actionTargetReached: only the state the failed action was after", () => {

@@ -445,9 +445,26 @@ function heroMeta(state) {
   return "CHECKING";
 }
 
-// Toggling is allowed only from a confirmed up/down with nothing in flight.
-function canToggle(state, busy) {
-  return !busy && (state === "up" || state === "down");
+// Toggling is allowed from a confirmed up/down with nothing in flight, or
+// from the state a failed action left: a failed action may leave a
+// half-created interface (exists, link down), classified `error`, and
+// wg-quick up refuses an existing interface, so the only escape is to issue
+// the opposite action. `failedDirection` is the direction of the last
+// failed action, "" while none stands.
+function canToggle(state, busy, failedDirection) {
+  if (busy) return false;
+  if (state === "up" || state === "down") return true;
+  return state === "error" && asText(failedDirection) !== "";
+}
+
+// The panel switch's position (ADR-0002): the observed state, except that a
+// failed action keeps the switch in the direction the user asked, so the
+// user can always issue the opposite to escape. A confirmed up is on; an
+// `error` left by a failed up is on; everything else is off. The switch is
+// intent, not a claim: the glyph, hero and status row keep showing the state.
+function switchOn(state, failedDirection) {
+  if (state === "up") return true;
+  return state === "error" && asText(failedDirection) === "up";
 }
 
 // A failed action's error is stale once a poll confirms the state it was

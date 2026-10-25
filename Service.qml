@@ -85,6 +85,13 @@ Item {
     // invalidated by _peerGen instead of blocking the user.
     readonly property bool busy: statusCommand.busy || actionCommand.busy
     readonly property bool tunnelUp: tunnelState === "up"
+    // The panel switch's position (Model.switchOn, ADR-0002): the observed
+    // state, except that a failed action keeps the switch in the direction
+    // the user asked, so the user can always issue the opposite to escape.
+    // The glyph, hero and status row keep reflecting tunnelState.
+    readonly property bool switchOn: Model.switchOn(tunnelState, _failedDirection)
+    // Public form of _failedDirection, for the panel's canToggle.
+    readonly property string failedDirection: _failedDirection
     readonly property bool hasStaleHandshake: Model.stalePeerKeys(peers).length > 0
 
     // Internal state --------------------------------------------------------
@@ -92,7 +99,9 @@ Item {
     // Display form of the in-flight action's command, for its failure message.
     property string _actionCmd: ""
     // Direction of the last failed action while its actionError stands, ""
-    // otherwise. A poll that confirms that state clears the error.
+    // otherwise. A poll that confirms that state clears the error. Also drives
+    // the switch position (switchOn) and canToggle, so a failed action leaves
+    // the switch operable (ADR-0002).
     property string _failedDirection: ""
     // Set by down() when it starts, consumed by the status poll that confirms
     // the down. Survives unreadable polls so our own down is never reported as
@@ -189,20 +198,23 @@ Item {
         refresh();
     }
 
+    // The direction comes from the switch position, not tunnelUp: in the trap
+    // state (a failed up, state error) the switch is on and a click must
+    // issue the down that escapes it.
     function toggle() {
-        if (!Model.canToggle(tunnelState, root.busy))
+        if (!Model.canToggle(tunnelState, root.busy, _failedDirection))
             return;
-        tunnelUp ? down() : up();
+        switchOn ? down() : up();
     }
 
     function up() {
-        if (!Model.canToggle(tunnelState, root.busy))
+        if (!Model.canToggle(tunnelState, root.busy, _failedDirection))
             return;
         _startAction("up");
     }
 
     function down() {
-        if (!Model.canToggle(tunnelState, root.busy))
+        if (!Model.canToggle(tunnelState, root.busy, _failedDirection))
             return;
         // Armed before the command runs: a failed or timed-out down is still ours.
         _expectDown = true;
@@ -439,6 +451,9 @@ Item {
 
     function _startAction(direction) {
         _peerGen++;
+        // The newest intent supersedes a remembered failed one, so the switch
+        // (switchOn) follows the click during the flight, not the old failure.
+        _failedDirection = "";
         desired = direction;
         _actionCmd = actionCmd(direction);
         actionCommand.start(wgQuickArgs(direction), root.actionTimeoutMs);

@@ -207,6 +207,12 @@ ShellRoot {
             return stepS30();
         case "s31":
             return stepS31();
+        case "s32":
+            return stepS32();
+        case "s33":
+            return stepS33();
+        case "s34":
+            return stepS34();
         }
         h.fail("unknown scenario '" + h.scn + "'");
         return false;
@@ -2062,6 +2068,187 @@ ShellRoot {
             if (h.ticks - h.settleT < 5)
                 return true;
             h.pass("a readable down re-armed the ip-error toast while the drop stayed latched");
+            return false;
+        }
+        h.fail("unhandled phase '" + h.phase + "'");
+        return false;
+    }
+
+    // s32: a failed up leaves a half-created, link-down interface (the trap):
+    //      the switch must stay on and operable, and two clicks (down, then
+    //      up) must escape it. run.sh: ip==4, wg<=6, wgq==3, nf==2.
+    function stepS32() {
+        var linkDown = Model.linkDownMessage("wg0");
+        switch (h.phase) {
+        case "boot":
+            h.phase = "wait-down";
+            return true;
+        case "wait-down":
+            if (svc.tunnelState !== "down")
+                return true;
+            svc.toggle(); // down -> up; wg-quick fails
+            h.phase = "wait-trap";
+            return true;
+        case "wait-trap":
+            if (svc.desired !== "" || h.cmdAction.busy || h.cmdStatus.busy)
+                return true;
+            if (svc.actionError !== Model.cmdFail(h.quickCmd("up"), 1, false)) {
+                h.fail("the failed up is not on the card: '" + svc.actionError + "'");
+                return false;
+            }
+            if (svc.statusError !== linkDown) {
+                h.fail("the verify did not classify the half-state: '" + svc.statusError + "'");
+                return false;
+            }
+            if (!svc.switchOn || !Model.canToggle(svc.tunnelState, false, svc.failedDirection)) {
+                h.fail("the trap is not reentrant: switchOn=" + svc.switchOn
+                       + " state=" + svc.tunnelState + " failedDirection=" + svc.failedDirection);
+                return false;
+            }
+            svc.toggle(); // switch on -> down: deletes the half-created interface
+            h.phase = "wait-down2";
+            return true;
+        case "wait-down2":
+            if (h.cmdStatus.busy || svc.tunnelState !== "down")
+                return true;
+            if (svc.actionError !== "" || svc.switchOn !== false || svc._expectDown !== false) {
+                h.fail("the down did not land clean: state=" + svc.tunnelState
+                       + " actionError='" + svc.actionError + "' switchOn=" + svc.switchOn);
+                return false;
+            }
+            svc.toggle(); // switch off -> up: creates it fresh
+            h.phase = "wait-up2";
+            return true;
+        case "wait-up2":
+            if (h.cmdStatus.busy || svc.tunnelState !== "up")
+                return true;
+            if (svc.lastError !== "" || !svc.switchOn || svc._notifyKeys.action !== "") {
+                h.fail("the recovery left residue: lastError='" + svc.lastError + "' switchOn=" + svc.switchOn);
+                return false;
+            }
+            h.pass("a failed up left the switch on and operable; down then up escaped the half-created interface");
+            return false;
+        }
+        h.fail("unhandled phase '" + h.phase + "'");
+        return false;
+    }
+
+    // s33: the watchdog kills a hung up (SIGKILL bypasses wg-quick's cleanup),
+    //      leaving the same half-created link-down interface: same trap, same
+    //      two-click escape. run.sh: ip==4, wg<=6, wgq==3, nf==2.
+    function stepS33() {
+        var linkDown = Model.linkDownMessage("wg0");
+        switch (h.phase) {
+        case "boot":
+            h.phase = "wait-down";
+            return true;
+        case "wait-down":
+            if (svc.tunnelState !== "down")
+                return true;
+            svc.toggle(); // down -> up; the run hangs into the watchdog
+            h.phase = "wait-trap";
+            return true;
+        case "wait-trap":
+            if (svc.desired !== "" || h.cmdAction.busy || h.cmdStatus.busy)
+                return true;
+            if (svc.actionError !== Model.cmdFail(h.quickCmd("up"), 0, true)) {
+                h.fail("the killed up is not on the card: '" + svc.actionError + "'");
+                return false;
+            }
+            if (svc.statusError !== linkDown) {
+                h.fail("the verify did not classify the half-state: '" + svc.statusError + "'");
+                return false;
+            }
+            if (!svc.switchOn || !Model.canToggle(svc.tunnelState, false, svc.failedDirection)) {
+                h.fail("the trap is not reentrant: switchOn=" + svc.switchOn
+                       + " state=" + svc.tunnelState + " failedDirection=" + svc.failedDirection);
+                return false;
+            }
+            svc.toggle();
+            h.phase = "wait-down2";
+            return true;
+        case "wait-down2":
+            if (h.cmdStatus.busy || svc.tunnelState !== "down")
+                return true;
+            if (svc.actionError !== "" || svc.switchOn !== false) {
+                h.fail("the down did not land clean: state=" + svc.tunnelState
+                       + " actionError='" + svc.actionError + "' switchOn=" + svc.switchOn);
+                return false;
+            }
+            svc.toggle();
+            h.phase = "wait-up2";
+            return true;
+        case "wait-up2":
+            if (h.cmdStatus.busy || svc.tunnelState !== "up")
+                return true;
+            if (svc.lastError !== "" || !svc.switchOn) {
+                h.fail("the recovery left residue: lastError='" + svc.lastError + "' switchOn=" + svc.switchOn);
+                return false;
+            }
+            h.pass("a killed up left the switch on and operable; down then up escaped the half-created interface");
+            return false;
+        }
+        h.fail("unhandled phase '" + h.phase + "'");
+        return false;
+    }
+
+    // s34: the mirror. A failed down leaves a link-down interface: the switch
+    //      must sit off and stay operable. A click issues up (which fails on
+    //      the existing interface, flipping the switch on); the next click
+    //      issues the down that deletes it. run.sh: ip==4, wg>=6, wgq==3, nf==3.
+    function stepS34() {
+        var linkDown = Model.linkDownMessage("wg0");
+        switch (h.phase) {
+        case "boot":
+            h.phase = "wait-up";
+            return true;
+        case "wait-up":
+            if (svc.tunnelState !== "up")
+                return true;
+            svc.toggle(); // up -> down; wg-quick fails
+            h.phase = "wait-fail1";
+            return true;
+        case "wait-fail1":
+            if (svc.desired !== "" || h.cmdAction.busy || h.cmdStatus.busy)
+                return true;
+            if (svc.actionError !== Model.cmdFail(h.quickCmd("down"), 1, false)) {
+                h.fail("the failed down is not on the card: '" + svc.actionError + "'");
+                return false;
+            }
+            if (svc.statusError !== linkDown) {
+                h.fail("the verify did not classify the half-state: '" + svc.statusError + "'");
+                return false;
+            }
+            if (svc.switchOn || !Model.canToggle(svc.tunnelState, false, svc.failedDirection)) {
+                h.fail("the failed down must leave the switch off and operable: switchOn=" + svc.switchOn
+                       + " state=" + svc.tunnelState + " failedDirection=" + svc.failedDirection);
+                return false;
+            }
+            svc.toggle(); // switch off -> up: fails, the interface exists
+            h.phase = "wait-fail2";
+            return true;
+        case "wait-fail2":
+            if (svc.desired !== "" || h.cmdAction.busy || h.cmdStatus.busy)
+                return true;
+            if (svc.actionError !== Model.cmdFail(h.quickCmd("up"), 1, false)) {
+                h.fail("the re-issued up is not on the card: '" + svc.actionError + "'");
+                return false;
+            }
+            if (!svc.switchOn) {
+                h.fail("the failed up must flip the switch on");
+                return false;
+            }
+            svc.toggle(); // switch on -> down: deletes the interface
+            h.phase = "wait-recovered";
+            return true;
+        case "wait-recovered":
+            if (h.cmdStatus.busy || svc.tunnelState !== "down")
+                return true;
+            if (svc.lastError !== "" || svc.switchOn !== false) {
+                h.fail("the recovery left residue: lastError='" + svc.lastError + "' switchOn=" + svc.switchOn);
+                return false;
+            }
+            h.pass("a failed down left the switch off and operable; up (failed) then down escaped the half-created interface");
             return false;
         }
         h.fail("unhandled phase '" + h.phase + "'");

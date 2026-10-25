@@ -56,7 +56,9 @@ Panel {
     // 1.55 is the kit's dim factor for bar icons.
     readonly property color barDim: Qt.darker(barForeground, 1.55)
     readonly property color barIconColor: alarmed ? urgent : (root.wg !== null && root.wg.tunnelUp ? barForeground : barDim)
-    readonly property string toggleHint: root.wg !== null && root.wg.tunnelUp ? "Turn the WireGuard tunnel off" : "Turn the WireGuard tunnel on"
+    // Follows the switch position, not tunnelUp: in the trap state the
+    // switch is on and a click brings the tunnel down.
+    readonly property string toggleHint: root.wg !== null && root.wg.switchOn ? "Turn the WireGuard tunnel off" : "Turn the WireGuard tunnel on"
 
     // Settings ----------------------------------------------------------------
 
@@ -194,10 +196,11 @@ Panel {
         function toggle() {
             root.toggle();
         }
-        // Click action of the outside-drop toast. up() itself refuses unless the
-        // tunnel is confirmed down and idle, so a stale toast is a no-op.
+        // Click action of the outside-drop toast. Only a confirmed down: in the
+        // trap state (a failed up) re-running up would fail on the half-created
+        // interface, so a stale toast stays a no-op.
         function bringUp() {
-            if (root.wg && !root.wg.tunnelUp)
+            if (root.wg && root.wg.tunnelState === "down")
                 root.wg.up();
         }
     }
@@ -355,13 +358,16 @@ Panel {
 
                                 ToggleSwitch {
                                     id: powerSwitch
-                                    checked: root.wg !== null && root.wg.tunnelUp
+                                    // The switch shows the requested direction,
+                                    // not the state (ADR-0002).
+                                    checked: root.wg !== null && root.wg.switchOn
                                     busy: root.wg !== null && root.wg.busy
                                     foreground: root.foreground
                                     hasCursor: root.toggleHasCursor
-                                    // Only from a confirmed up/down. `busy` is left to the
-                                    // switch's spinner, so a mid-poll switch still looks live.
-                                    interactive: root.wg !== null && Model.canToggle(root.wg.tunnelState, false)
+                                    // From a confirmed up/down, or the state a failed action
+                                    // left. `busy` is left to the switch's spinner, so a
+                                    // mid-poll switch still looks live.
+                                    interactive: root.wg !== null && Model.canToggle(root.wg.tunnelState, false, root.wg.failedDirection)
                                     onHovered: function (h) {
                                         if (h)
                                             root.setHeaderCursor(2);
